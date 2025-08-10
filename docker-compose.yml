@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 개발 환경
+  api-dev:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=development
+    command: ["python", "scripts/run_api.py", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    profiles:
+      - dev
+
+  # 프로덕션 환경
+  api-prod:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=production
+    command: ["python", "scripts/run_api.py", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+    restart: unless-stopped
+    profiles:
+      - prod
+
+  # 테스트 환경
+  api-test:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=test
+    command: ["python", "scripts/run_api.py", "--host", "0.0.0.0", "--port", "8000"]
+    profiles:
+      - test 

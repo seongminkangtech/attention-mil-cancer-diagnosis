@@ -1,0 +1,55 @@
+# Attention MIL 모델 설정 파일
+
+# 모델 설정
+model:
+  name: "attention_mil"
+  num_classes: 3
+  feature_extractor:
+    model_name: "efficientnet_b2"
+    pretrained: true
+  attention:
+    hidden_dim: 128
+    dropout_rate: 0.2
+
+# 데이터 설정
+data:
+  image_count: 50
+  img_size: 256
+  batch_size: 4
+  train_ratio: 0.8
+  shuffle: true
+  
+# 학습 설정
+training:
+  epochs: 50
+  learning_rate: 2e-4
+  optimizer: "adam"
+  scheduler: "step"
+  step_size: 10
+  gamma: 0.1
+  
+# 데이터 경로
+paths:
+  train_csv: "data/train.csv"
+  test_csv: "data/test.csv"
+  label_csv: "data/label_data.csv"
+  frame_path: "data/frame/"
+  model_save_path: "models/attention_mil/"
+  
+# 하드웨어 설정
+hardware:
+  device: "auto"  # "auto", "cuda", "cpu"
+  num_workers: 4
+  
+# 로깅 설정
+logging:
+  log_interval: 10
+  save_interval: 5
+  tensorboard: true
+  mlflow: true
+  
+# 평가 설정
+evaluation:
+  metrics: ["accuracy", "precision", "recall", "f1", "auc"]
+  save_predictions: true
+  confusion_matrix: true 

@@ -82,8 +82,8 @@ patient_ids.csv
 
 ## 🤖 AI 모델 파일
 
-# 모델 파일 (용량이 큼)
-models/
+# 모델 파일 (용량이 큼) - 모델 아키텍처는 공유되므로 제거
+# models/ - 모델 아키텍처 공유를 위해 제거
 checkpoints/
 *.h5
 *.hdf5
@@ -175,7 +175,7 @@ $RECYCLE.BIN/
 
 ## 🚀 MLOps 도구
 
-# MLflow
+# MLflow - 실험 결과는 공유하지 않음
 mlruns/
 mlflow/
 mlflow.db
@@ -197,7 +197,7 @@ docker-compose.override.yml
 
 # 각 프로젝트별 데이터/모델
 */data/
-*/models/
+# */models/ - 모델 아키텍처 공유를 위해 제거
 */checkpoints/
 */results/
 */outputs/
