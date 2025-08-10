@@ -52,4 +52,12 @@ logging:
 evaluation:
   metrics: ["accuracy", "precision", "recall", "f1", "auc"]
   save_predictions: true
-  confusion_matrix: true 
+  confusion_matrix: true
+
+# 배포 설정
+deployment:
+  model_type: "onnx"
+  onnx_model_path: "models/attention_mil.onnx"
+  providers: ["CUDAExecutionProvider", "CPUExecutionProvider"]
+  optimization_level: 1
+  enable_profiling: false 

@@ -11,7 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 import yaml
-import torch
 
 # 프로젝트 루트를 Python 경로에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -81,11 +80,20 @@ def create_app() -> FastAPI:
         except Exception as e:
             print(f"❌ 설정 파일 로드 실패: {e}")
         
-        # GPU 사용 가능 여부 확인
-        if torch.cuda.is_available():
-            print(f"✅ GPU 사용 가능: {torch.cuda.get_device_name(0)}")
-        else:
-            print("⚠️ GPU를 사용할 수 없습니다. CPU를 사용합니다.")
+        # ONNX Runtime 정보 확인
+        try:
+            import onnxruntime as ort
+            providers = ort.get_available_providers()
+            print(f"✅ ONNX Runtime 사용 가능")
+            print(f"   - 사용 가능한 제공자: {providers}")
+            
+            if 'CUDAExecutionProvider' in providers:
+                print("✅ GPU 가속 지원")
+            else:
+                print("⚠️ GPU 가속을 사용할 수 없습니다. CPU를 사용합니다.")
+                
+        except ImportError:
+            print("⚠️ ONNX Runtime을 찾을 수 없습니다.")
     
     # 종료 이벤트
     @app.on_event("shutdown")

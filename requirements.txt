@@ -2,6 +2,11 @@ torch>=2.0.0
 torchvision>=0.15.0
 torchmetrics>=1.0.0
 
+# ONNX 관련
+onnx>=1.14.0
+onnxruntime>=1.15.0
+onnxruntime-gpu>=1.15.0
+
 timm>=0.9.0
 Pillow>=9.0.0
 
