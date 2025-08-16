@@ -1,0 +1,275 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attention-mil-dev
+  namespace: attention-mil-dev
+  labels:
+    app: attention-mil-dev
+    environment: development
+    version: IMAGE_TAG
+    git-commit: GIT_COMMIT
+    git-branch: GIT_BRANCH
+  annotations:
+    description: "Attention MIL Cancer Diagnosis 개발 환경 배포"
+    deployment.kubernetes.io/revision: "1"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: attention-mil-dev
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: attention-mil-dev
+        environment: development
+        version: IMAGE_TAG
+        git-commit: GIT_COMMIT
+        git-branch: GIT_BRANCH
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: attention-mil-api
+        image: REGISTRY/attention-mil:IMAGE_TAG
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        - containerPort: 8001
+          name: metrics
+          protocol: TCP
+        env:
+        # 애플리케이션 설정
+        - name: APP_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: APP_NAME
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: ENVIRONMENT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: LOG_LEVEL
+        
+        # API 설정
+        - name: API_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: API_HOST
+        - name: API_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: API_PORT
+        - name: API_WORKERS
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: API_WORKERS
+        - name: API_RELOAD
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: API_RELOAD
+        
+        # 모델 설정
+        - name: MODEL_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: MODEL_PATH
+        - name: MODEL_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: MODEL_TYPE
+        - name: FEATURE_DIM
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: FEATURE_DIM
+        - name: NUM_CLASSES
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: NUM_CLASSES
+        
+        # MLflow 설정
+        - name: MLFLOW_TRACKING_URI
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: MLFLOW_TRACKING_URI
+        - name: MLFLOW_TRACKING_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: attention-mil-dev-secret
+              key: MLFLOW_TRACKING_USERNAME
+        - name: MLFLOW_TRACKING_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: attention-mil-dev-secret
+              key: MLFLOW_TRACKING_PASSWORD
+        
+        # 성능 설정
+        - name: BATCH_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: BATCH_SIZE
+        - name: INFERENCE_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: INFERENCE_TIMEOUT
+        - name: MAX_CONCURRENT_REQUESTS
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: MAX_CONCURRENT_REQUESTS
+        
+        # 모니터링 설정
+        - name: METRICS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-dev-config
+              key: METRICS_ENABLED
+        
+        # Git 정보
+        - name: GIT_COMMIT
+          value: GIT_COMMIT
+        - name: GIT_BRANCH
+          value: GIT_BRANCH
+        - name: BUILD_TIME
+          value: "2024-12-01T00:00:00Z"
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        
+        # 헬스체크
+        livenessProbe:
+          httpGet:
+            path: /health/
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        readinessProbe:
+          httpGet:
+            path: /health/
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        # 보안 설정
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          capabilities:
+            drop:
+            - ALL
+        
+        # 볼륨 마운트
+        volumeMounts:
+        - name: models-volume
+          mountPath: /app/models
+          readOnly: true
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: tmp-volume
+          mountPath: /tmp
+        
+        # 명령어 및 인수
+        command: ["python"]
+        args: ["scripts/run_api.py", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+        
+        # 환경 변수 파일
+        envFrom:
+        - configMapRef:
+            name: attention-mil-dev-config
+        
+        # 시크릿 환경 변수
+        envFrom:
+        - secretRef:
+            name: attention-mil-dev-secret
+      
+      # 볼륨 정의
+      volumes:
+      - name: models-volume
+        persistentVolumeClaim:
+          claimName: attention-mil-dev-models-pvc
+      - name: logs-volume
+        emptyDir: {}
+      - name: tmp-volume
+        emptyDir: {}
+      
+      # 보안 컨텍스트
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      
+      # 이미지 풀 시크릿
+      imagePullSecrets:
+      - name: attention-mil-dev-registry-secret
+      
+      # 노드 선택자
+      nodeSelector:
+        environment: development
+        gpu: "false"
+      
+      # 톨러레이션
+      tolerations:
+      - key: "environment"
+        operator: "Equal"
+        value: "development"
+        effect: "NoSchedule"
+      
+      # 어피니티
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: environment
+                operator: In
+                values:
+                - development 

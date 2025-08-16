@@ -62,6 +62,10 @@ class AttentionMILModel(nn.Module):
         Returns:
             torch.Tensor: 분류 로짓 (B, num_classes)
         """
+        # 입력 차원 검증
+        if inputs.dim() != 5:
+            raise ValueError(f"입력 텐서는 5차원이어야 합니다. 현재 차원: {inputs.dim()}")
+        
         batch_size, num_tiles, channels, height, width = inputs.size()
         
         # 입력을 평면화
@@ -99,6 +103,10 @@ class AttentionMILModel(nn.Module):
         Returns:
             torch.Tensor: Attention 가중치 (B, num_tiles)
         """
+        # 입력 차원 검증
+        if inputs.dim() != 5:
+            raise ValueError(f"입력 텐서는 5차원이어야 합니다. 현재 차원: {inputs.dim()}")
+        
         batch_size, num_tiles, channels, height, width = inputs.size()
         
         # 입력을 평면화

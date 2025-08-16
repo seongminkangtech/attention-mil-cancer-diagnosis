@@ -37,11 +37,12 @@ class PredictionRequest(BaseModel):
 
 class PredictionResponse(BaseModel):
     """추론 응답 모델"""
-    prediction: str
-    confidence: float
-    class_probabilities: Dict[str, float]
-    attention_weights: Optional[List[float]] = None
-    processing_time: float
+    success: bool
+    message: str
+    timestamp: str
+    service: str
+    data: Optional[Dict[str, Any]] = None
+    error_code: Optional[str] = None
 
 
 router = APIRouter()

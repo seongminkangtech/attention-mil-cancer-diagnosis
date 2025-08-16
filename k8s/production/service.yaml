@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: attention-mil-production
+  namespace: attention-mil-production
+  labels:
+    app: attention-mil-production
+    environment: production
+    tier: production
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP
+    name: metrics
+  selector:
+    app: attention-mil-production
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800

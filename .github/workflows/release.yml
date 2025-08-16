@@ -1,0 +1,147 @@
+name: Release - 태그 기반 배포
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '릴리스 버전 (예: v1.2.0)'
+        required: true
+        default: 'v1.0.0'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  create-release:
+    name: GitHub 릴리스 생성
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: 코드 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: 릴리스 노트 생성
+      id: release_notes
+      run: |
+        echo "📝 릴리스 노트 생성 중..."
+        
+        # 태그에서 버전 추출
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+        # 커밋 로그에서 변경사항 추출
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+        
+        if [ -n "$PREVIOUS_TAG" ]; then
+          CHANGELOG=$(git log --pretty=format:"- %s" $PREVIOUS_TAG..HEAD)
+        else
+          CHANGELOG=$(git log --pretty=format:"- %s" --oneline -20)
+        fi
+        
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: GitHub 릴리스 생성
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.release_notes.outputs.version }}
+        release_name: Release ${{ steps.release_notes.outputs.version }}
+        body: |
+          ## 🚀 새로운 기능
+          
+          ${{ steps.release_notes.outputs.changelog }}
+          
+          ## 📦 설치 방법
+          
+          ```bash
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.release_notes.outputs.version }}
+          ```
+          
+          ## 🔧 변경사항
+          
+          자세한 변경사항은 [CHANGELOG.md](CHANGELOG.md)를 참조하세요.
+        draft: false
+        prerelease: false
+
+  build-release:
+    name: 릴리스 이미지 빌드
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: 코드 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: Docker Buildx 설정
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Docker 로그인
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Docker 메타데이터 추출
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Docker 이미지 빌드 및 푸시
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+    
+    - name: 이미지 보안 스캔
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: 보안 검사 결과 업로드
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  notify-release:
+    name: 릴리스 알림
+    runs-on: ubuntu-latest
+    needs: [create-release, build-release]
+    if: always()
+    
+    steps:
+    - name: 릴리스 결과 요약
+      run: |
+        echo "🎉 릴리스 결과 요약"
+        echo "=================="
+        echo "릴리스 생성: ${{ needs.create-release.result }}"
+        echo "이미지 빌드: ${{ needs.build-release.result }}"
+        
+        if [ "${{ needs.create-release.result }}" == "success" ] && [ "${{ needs.build-release.result }}" == "success" ]; then
+          echo "✅ 릴리스 성공!"
+          echo "🚀 ${{ github.ref_name }} 버전이 성공적으로 배포되었습니다."
+        else
+          echo "❌ 릴리스 실패"
+          echo "🔍 문제를 확인하고 수정해주세요."
+        fi

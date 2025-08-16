@@ -86,6 +86,14 @@ class ONNXModel:
             if self.session is None:
                 raise RuntimeError("모델이 로드되지 않았습니다.")
             
+            # 입력 데이터 타입 검증
+            if not isinstance(input_data, np.ndarray):
+                raise ValueError(f"입력 데이터는 numpy 배열이어야 합니다. 현재 타입: {type(input_data)}")
+            
+            # 입력 데이터 형태 검증
+            if input_data.ndim != 5:
+                raise ValueError(f"입력 데이터는 5차원이어야 합니다. 현재 차원: {input_data.ndim}")
+            
             # 입력 데이터 준비
             input_feed = {self.input_names[0]: input_data}
             

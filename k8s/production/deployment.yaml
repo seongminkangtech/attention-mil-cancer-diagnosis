@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attention-mil-production
+  namespace: attention-mil-production
+  labels:
+    app: attention-mil-production
+    environment: production
+    tier: production
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: attention-mil-production
+  template:
+    metadata:
+      labels:
+        app: attention-mil-production
+        environment: production
+        tier: production
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: attention-mil-api
+        image: ghcr.io/GMC/attention-mil:IMAGE_TAG
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 8001
+          name: metrics
+        env:
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-production-config
+              key: APP_ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-production-config
+              key: LOG_LEVEL
+        - name: MODEL_CONFIG_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-production-config
+              key: MODEL_CONFIG_PATH
+        - name: ONNX_MODEL_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-production-config
+              key: ONNX_MODEL_PATH
+        - name: API_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-production-config
+              key: API_HOST
+        - name: API_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-production-config
+              key: API_PORT
+        - name: API_WORKERS
+          valueFrom:
+            configMapKeyRef:
+              name: attention-mil-production-config
+              key: API_WORKERS
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: attention-mil-production-secret
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: attention-mil-production-secret
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: attention-mil-production-secret
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: attention-mil-production-secret
+              key: DB_USER
+        - name: API_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: attention-mil-production-secret
+              key: API_SECRET_KEY
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: attention-mil-production-secret
+              key: JWT_SECRET
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health/
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: model-storage
+          mountPath: /app/models
+          readOnly: true
+        - name: config-storage
+          mountPath: /app/configs
+          readOnly: true
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: attention-mil-production-models-pvc
+      - name: config-storage
+        configMap:
+          name: attention-mil-production-config
+      imagePullSecrets:
+      - name: ghcr-secret

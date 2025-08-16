@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: attention-mil-dev-config
+  namespace: attention-mil-dev
+  labels:
+    app: attention-mil-dev
+    environment: development
+data:
+  # 애플리케이션 설정
+  APP_NAME: "Attention MIL Cancer Diagnosis"
+  ENVIRONMENT: "development"
+  LOG_LEVEL: "DEBUG"
+  
+  # API 설정
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  API_WORKERS: "2"
+  API_RELOAD: "true"
+  
+  # 모델 설정
+  MODEL_PATH: "/app/models/attention_mil.onnx"
+  MODEL_TYPE: "onnx"
+  FEATURE_DIM: "1408"
+  NUM_CLASSES: "3"
+  
+  # MLflow 설정
+  MLFLOW_TRACKING_URI: "http://mlflow-service:5000"
+  MLFLOW_EXPERIMENT_NAME: "attention-mil-cancer-diagnosis"
+  
+  # 데이터 처리 설정
+  MAX_FILE_SIZE: "10485760"  # 10MB
+  SUPPORTED_FORMATS: "jpg,jpeg,png,bmp"
+  IMAGE_TARGET_SIZE: "256,256"
+  NUM_FRAMES: "50"
+  
+  # 성능 설정
+  BATCH_SIZE: "4"
+  INFERENCE_TIMEOUT: "30"
+  MAX_CONCURRENT_REQUESTS: "10"
+  
+  # 모니터링 설정
+  METRICS_ENABLED: "true"
+  HEALTH_CHECK_INTERVAL: "30"
+  READINESS_PROBE_TIMEOUT: "5"
+  LIVENESS_PROBE_TIMEOUT: "5" 

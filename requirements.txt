@@ -37,3 +37,6 @@ pydicom>=2.3.0
 opencv-python>=4.6.0
 
 loguru>=0.6.0 
+
+pytest==7.4.0
+httpx>=0.24.0
