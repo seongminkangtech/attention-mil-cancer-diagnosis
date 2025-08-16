@@ -1,0 +1,180 @@
+name: CD - 지속적 배포
+
+on:
+  push:
+    branches: [ main, staging ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '배포 환경'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+      version:
+        description: '배포할 버전 (예: v1.2.0)'
+        required: false
+        default: 'latest'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: Docker 이미지 빌드 및 푸시
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    
+    steps:
+    - name: 코드 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: Docker Buildx 설정
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Docker 로그인
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Docker 메타데이터 추출
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Docker 이미지 빌드 및 푸시
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+    
+    - name: 이미지 보안 스캔
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: 보안 검사 결과 업로드
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  deploy-staging:
+    name: 스테이징 환경 배포
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/staging' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    
+    steps:
+    - name: 코드 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: Kubernetes 설정
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+    
+    - name: Kubernetes 컨텍스트 설정
+      run: |
+        echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+    
+    - name: 스테이징 환경 배포
+      run: |
+        echo "🚀 스테이징 환경에 배포 중..."
+        
+        # 기존 dev 디렉토리를 staging으로 사용
+        # 이미지 태그 업데이트
+        sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/dev/deployment.yaml
+        
+        # 네임스페이스를 staging으로 생성
+        kubectl create namespace attention-mil-staging --dry-run=client -o yaml | kubectl apply -f -
+        
+        # dev 디렉토리의 매니페스트를 staging 네임스페이스에 배포
+        kubectl apply -f k8s/dev/ -n attention-mil-staging
+        
+        # 배포 상태 확인
+        kubectl rollout status deployment/attention-mil-dev -n attention-mil-staging --timeout=300s
+    
+    - name: 헬스체크
+      run: |
+        echo "🏥 배포 후 헬스체크 중..."
+        kubectl wait --for=condition=ready pod -l app=attention-mil-dev -n attention-mil-staging --timeout=300s
+        
+        # API 엔드포인트 테스트
+        kubectl port-forward svc/attention-mil-dev 8000:8000 -n attention-mil-staging &
+        sleep 10
+        
+        curl -f http://localhost:8000/health/status || exit 1
+        
+        # 포트포워드 종료
+        pkill -f "kubectl port-forward"
+
+  # 프로덕션 환경 배포는 제거 (스테이징까지만 구성)
+  # deploy-production job removed
+
+  rollback:
+    name: 롤백 준비
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: failure()
+    
+    steps:
+    - name: 롤백 스크립트 생성
+      run: |
+        echo "🔄 롤백 스크립트 생성 중..."
+        cat > rollback.sh << 'EOF'
+        #!/bin/bash
+        echo "롤백을 실행하려면 다음 명령어를 실행하세요:"
+        echo "kubectl rollout undo deployment/attention-mil-dev -n attention-mil-staging"
+        echo ""
+        echo "이전 버전으로 롤백:"
+        echo "kubectl rollout history deployment/attention-mil-dev -n attention-mil-staging"
+        EOF
+        
+        chmod +x rollback.sh
+    
+    - name: 롤백 가이드 업로드
+      uses: actions/upload-artifact@v3
+      with:
+        name: rollback-guide
+        path: rollback.sh
+
+  notify:
+    name: 배포 결과 알림
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, rollback]
+    if: always()
+    
+    steps:
+    - name: 배포 결과 요약
+      run: |
+        echo "📊 배포 결과 요약"
+        echo "=================="
+        echo "스테이징 배포: ${{ needs.deploy-staging.result }}"
+        echo "롤백 준비: ${{ needs.rollback.result }}"
+        
+        if [ "${{ needs.deploy-staging.result }}" == "success" ]; then
+          echo "✅ 스테이징 배포 성공!"
+        else
+          echo "❌ 스테이징 배포 실패"
+        fi

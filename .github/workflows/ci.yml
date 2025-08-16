@@ -1,0 +1,173 @@
+name: CI - 지속적 통합
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  PYTHON_VERSION: "3.10"
+  PIP_CACHE_DIR: ~/.cache/pip
+
+jobs:
+  code-quality:
+    name: 코드 품질 검사
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 코드 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: Python ${{ env.PYTHON_VERSION }} 설정
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: 의존성 설치
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install black flake8 mypy isort
+    
+    - name: 코드 포맷팅 검사 (Black)
+      run: |
+        echo "🔍 Black으로 코드 포맷팅 검사 중..."
+        black --check --diff src/ scripts/ tests/
+    
+    - name: Import 정렬 검사 (isort)
+      run: |
+        echo "🔍 isort으로 import 정렬 검사 중..."
+        isort --check-only --diff src/ scripts/ tests/
+    
+    - name: 코드 품질 검사 (Flake8)
+      run: |
+        echo "🔍 Flake8으로 코드 품질 검사 중..."
+        flake8 src/ scripts/ tests/ --max-line-length=88 --extend-ignore=E203,W503
+    
+    - name: 타입 체크 (MyPy)
+      run: |
+        echo "🔍 MyPy로 타입 체크 중..."
+        mypy src/ --ignore-missing-imports --no-strict-optional
+
+  test:
+    name: 테스트 실행
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 코드 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: Python ${{ env.PYTHON_VERSION }} 설정
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: 의존성 설치
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: 전체 테스트 실행
+      run: |
+        echo "🧪 테스트 실행 중..."
+        pytest tests/ -v
+    
+    - name: 단위 테스트만 실행
+      run: |
+        echo "🧪 단위 테스트 실행 중..."
+        pytest tests/unit/ -v
+    
+    - name: 통합 테스트만 실행
+      run: |
+        echo "🧪 통합 테스트 실행 중..."
+        pytest tests/integration/ -v
+
+  security:
+    name: 보안 검사
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 코드 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: Python ${{ env.PYTHON_VERSION }} 설정
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: 보안 도구 설치
+      run: |
+        pip install safety bandit
+    
+    - name: 의존성 보안 검사
+      run: |
+        echo "🔒 의존성 보안 취약점 검사 중..."
+        safety check --json --output safety-report.json || true
+    
+    - name: 코드 보안 검사
+      run: |
+        echo "🔒 코드 보안 취약점 검사 중..."
+        bandit -r src/ -f json -o bandit-report.json || true
+    
+    - name: 보안 리포트 업로드
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          safety-report.json
+          bandit-report.json
+
+  build:
+    name: 빌드 검증
+    runs-on: ubuntu-latest
+    needs: [code-quality, test, security]
+    
+    steps:
+    - name: 코드 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: Python ${{ env.PYTHON_VERSION }} 설정
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: 의존성 설치
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Docker 빌드 테스트
+      run: |
+        echo "🐳 Docker 이미지 빌드 테스트 중..."
+        docker build -t attention-mil:test .
+    
+    - name: ONNX 변환 테스트
+      run: |
+        echo "⚡ ONNX 변환 테스트 중..."
+        python scripts/onnx_tools.py --validate --onnx_path models/model.onnx || echo "ONNX 모델이 없습니다. 학습 후 생성됩니다."
+
+  notify:
+    name: 알림
+    runs-on: ubuntu-latest
+    needs: [code-quality, test, security, build]
+    if: always()
+    
+    steps:
+    - name: CI 결과 알림
+      run: |
+        if [ "${{ needs.code-quality.result }}" == "success" ] && \
+           [ "${{ needs.test.result }}" == "success" ] && \
+           [ "${{ needs.security.result }}" == "success" ] && \
+           [ "${{ needs.build.result }}" == "success" ]; then
+          echo "✅ 모든 CI 단계가 성공했습니다!"
+        else
+          echo "❌ 일부 CI 단계가 실패했습니다."
+          echo "Code Quality: ${{ needs.code-quality.result }}"
+          echo "Test: ${{ needs.test.result }}"
+          echo "Security: ${{ needs.security.result }}"
+          echo "Build: ${{ needs.build.result }}"
+        fi 
