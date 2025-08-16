@@ -17,8 +17,9 @@ jobs:
     name: 테스트 실행
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false  # 하나의 버전 실패 시에도 다른 버전 계속 실행
       matrix:
-        python-version: [3.9, 3.10]
+        python-version: [3.9, 3.10, 3.11]
     
     steps:
     - name: 코드 체크아웃
@@ -43,19 +44,19 @@ jobs:
     
     - name: 코드 스타일 검사
       run: |
-        echo "🔍 코드 스타일 검사 중..."
+        echo "🔍 코드 스타일 검사 중... (Python ${{ matrix.python-version }})"
         black --check --diff src/ tests/
         isort --check-only --diff src/ tests/
         flake8 src/ tests/ --max-line-length=100 --extend-ignore=E203,W503
     
     - name: 타입 검사
       run: |
-        echo "🔍 타입 검사 중..."
+        echo "🔍 타입 검사 중... (Python ${{ matrix.python-version }})"
         mypy src/ --ignore-missing-imports --no-strict-optional
     
     - name: 테스트 실행
       run: |
-        echo "🧪 테스트 실행 중..."
+        echo "🧪 테스트 실행 중... (Python ${{ matrix.python-version }})"
         pytest tests/ -v --cov=src --cov-report=xml --cov-report=html
     
     - name: 테스트 커버리지 업로드
@@ -87,6 +88,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
     
     - name: 보안 취약점 검사
       run: |
@@ -94,10 +96,14 @@ jobs:
         pip install safety bandit
         
         # 의존성 보안 검사
-        safety check --json --output safety-report.json || true
+        echo "📦 의존성 보안 검사 중..."
+        safety check --json --output safety-report.json || echo "Safety 검사 완료 (경고 무시)"
         
         # 코드 보안 검사
-        bandit -r src/ -f json -o bandit-report.json || true
+        echo "🔍 코드 보안 검사 중..."
+        bandit -r src/ -f json -o bandit-report.json || echo "Bandit 검사 완료 (경고 무시)"
+        
+        echo "✅ 보안 검사 완료"
     
     - name: 보안 검사 결과 업로드
       uses: actions/upload-artifact@v4
@@ -163,10 +169,48 @@ jobs:
     steps:
     - name: 품질 검사 결과 확인
       run: |
-        echo "✅ 모든 품질 검사 통과!"
-        echo "📊 테스트 커버리지: 확인됨"
-        echo "🔒 보안 검사: 완료됨"
-        echo "🐳 Docker 빌드: 성공"
+        echo "🔍 품질 검사 결과 분석 중..."
+        echo "=================================="
         
-        # 여기에 품질 기준을 추가할 수 있습니다
-        # 예: 테스트 커버리지 80% 이상, 보안 취약점 없음 등 
+        # 테스트 결과 확인
+        if [ "${{ needs.test.result }}" == "success" ]; then
+          echo "✅ 테스트: 성공"
+        elif [ "${{ needs.test.result }}" == "failure" ]; then
+          echo "❌ 테스트: 실패"
+        else
+          echo "⚠️ 테스트: ${{ needs.test.result }}"
+        fi
+        
+        # 보안 검사 결과 확인
+        if [ "${{ needs.security-scan.result }}" == "success" ]; then
+          echo "✅ 보안 검사: 성공"
+        elif [ "${{ needs.security-scan.result }}" == "failure" ]; then
+          echo "❌ 보안 검사: 실패"
+        else
+          echo "⚠️ 보안 검사: ${{ needs.security-scan.result }}"
+        fi
+        
+        # Docker 빌드 결과 확인
+        if [ "${{ needs.docker-build.result }}" == "success" ]; then
+          echo "✅ Docker 빌드: 성공"
+        elif [ "${{ needs.docker-build.result }}" == "failure" ]; then
+          echo "❌ Docker 빌드: 실패"
+        else
+          echo "⚠️ Docker 빌드: ${{ needs.docker-build.result }}"
+        fi
+        
+        echo ""
+        
+        # 전체 결과 요약
+        if [ "${{ needs.test.result }}" == "success" ] && \
+           [ "${{ needs.security-scan.result }}" == "success" ] && \
+           [ "${{ needs.docker-build.result }}" == "success" ]; then
+          echo "🎉 모든 품질 검사 통과!"
+          echo "📊 테스트 커버리지: 확인됨"
+          echo "🔒 보안 검사: 완료됨"
+          echo "🐳 Docker 빌드: 성공"
+        else
+          echo "⚠️ 일부 품질 검사 실패"
+          echo "🔍 자세한 내용은 위의 결과를 확인하세요"
+          exit 1
+        fi 
