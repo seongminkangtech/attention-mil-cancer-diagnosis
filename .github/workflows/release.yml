@@ -25,6 +25,12 @@ jobs:
     - name: 코드 체크아웃
       uses: actions/checkout@v4
     
+    - name: Python 설정
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
     - name: 릴리스 노트 생성
       id: release_notes
       run: |
@@ -81,6 +87,12 @@ jobs:
     - name: 코드 체크아웃
       uses: actions/checkout@v4
     
+    - name: Python 설정
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
     - name: Docker Buildx 설정
       uses: docker/setup-buildx-action@v3
     
@@ -110,7 +122,8 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
+        outputs: type=oci,dest=/tmp/image.tar
     
     - name: 이미지 보안 스캔
       uses: aquasecurity/trivy-action@master

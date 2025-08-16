@@ -10,9 +10,19 @@ permissions:
 jobs:
   dependency-review:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+      
+      - name: Python ${{ matrix.python-version }} 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
       
       - name: Dependency Review
         uses: actions/dependency-review-action@v3
