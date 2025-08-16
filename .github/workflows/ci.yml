@@ -10,7 +10,7 @@ on:
 env:
   PYTHON_VERSION: '3.9'
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/attention-mil
 
 jobs:
   test:
