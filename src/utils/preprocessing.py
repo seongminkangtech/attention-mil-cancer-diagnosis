@@ -72,7 +72,7 @@ def load_and_preprocess_images(
         label_list.append(label - 1)  # 0-based 인덱스로 변환
 
         # 이미지 파일 리스트
-        image_file_list = glob(os.path.join(image_list[i], "*.jpg"))
+        image_file_list = glob(os.path.join(str(image_list[i]), "*.jpg"))
 
         if len(image_file_list) > image_count:
             # 랜덤 샘플링
@@ -82,7 +82,7 @@ def load_and_preprocess_images(
             start_idx = image_index.item()
 
             for count in range(image_count):
-                image = Image.open(image_file_list[start_idx + count]).resize(
+                image = Image.open(image_file_list[int(start_idx + count)]).resize(
                     (img_size, img_size)
                 )
                 image = 1 - tf(image)  # 색상 반전
@@ -100,7 +100,7 @@ def load_and_preprocess_images(
                     (img_size, img_size)
                 )
                 image = 1 - tf(image)
-                image_tensor[i, len(image_file_list) + j] = image
+                image_tensor[i, int(len(image_file_list) + j)] = image
 
     # 라벨을 one-hot 인코딩으로 변환
     labels = F.one_hot(torch.tensor(label_list).to(torch.int64), num_classes=3)

@@ -16,7 +16,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from src.models.onnx_model import ONNXModel
-from src.utils import get_class_names
+from src.utils.preprocessing import get_class_names
 
 from ..utils.response import create_error_response, create_response
 from ..utils.validation import validate_model_config, validate_prediction_request

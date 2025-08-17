@@ -1,5 +1,5 @@
 # 의료 AI 추론 서비스 Dockerfile
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 # 작업 디렉토리 설정
 WORKDIR /app
@@ -29,4 +29,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health/ || exit 1
 
 # 서버 실행
-CMD ["python", "scripts/run_api.py", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["python", "-m", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"] 

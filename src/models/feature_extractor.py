@@ -34,7 +34,18 @@ class FeatureExtractor(nn.Module):
         self.feature_extractor = nn.Sequential(*list(self.backbone.children())[:-1])
 
         # 특징 차원 저장
-        self.feature_dim = self.backbone.num_features
+        if hasattr(self.backbone, "num_features"):
+            num_features = self.backbone.num_features
+            if isinstance(num_features, torch.Tensor):
+                self.feature_dim = int(num_features.item())
+            elif isinstance(num_features, (int, float)):
+                self.feature_dim = int(num_features)
+            else:
+                # 기본값 설정 (EfficientNet-B2의 특징 차원)
+                self.feature_dim = 1408
+        else:
+            # 기본값 설정 (EfficientNet-B2의 특징 차원)
+            self.feature_dim = 1408
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """

@@ -1,9 +1,5 @@
 """
-API 라우터 패키지
+API 라우트 모듈
 
-FastAPI 엔드포인트들을 포함합니다.
+의료 AI API의 엔드포인트들을 정의합니다.
 """
-
-from . import health, predict
-
-__all__ = ["health", "predict"]

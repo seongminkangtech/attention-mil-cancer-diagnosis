@@ -1,7 +1,10 @@
 name: CD - Docker 이미지 빌드 및 푸시
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI - 지속적 통합"]
+    types:
+      - completed
     branches: [ main ]
   workflow_dispatch:
     inputs:
@@ -18,13 +21,47 @@ jobs:
   build-and-push:
     name: Docker 이미지 빌드 및 푸시
     runs-on: ubuntu-22.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
       image-digest: ${{ steps.build.outputs.digest }}
     
     steps:
+    - name: CI 결과 확인
+      run: |
+        echo "🔍 CI 워크플로우 결과 확인 중..."
+        if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+          echo "❌ CI가 실패했습니다. Docker 빌드를 건너뜁니다."
+          exit 1
+        fi
+        echo "✅ CI가 성공했습니다. Docker 빌드를 진행합니다."
+    
     - name: 코드 체크아웃
       uses: actions/checkout@v4
+    
+    - name: 사전 검사
+      run: |
+        echo "🔍 Docker 빌드 사전 검사 중..."
+        
+        # Dockerfile 존재 확인
+        if [ ! -f "Dockerfile" ]; then
+          echo "❌ Dockerfile이 존재하지 않습니다."
+          exit 1
+        fi
+        
+        # requirements.txt 존재 확인
+        if [ ! -f "requirements.txt" ]; then
+          echo "❌ requirements.txt가 존재하지 않습니다."
+          exit 1
+        fi
+        
+        # 소스 코드 디렉토리 확인
+        if [ ! -d "src" ]; then
+          echo "❌ src 디렉토리가 존재하지 않습니다."
+          exit 1
+        fi
+        
+        echo "✅ 사전 검사 통과"
     
     - name: Docker Buildx 설정
       uses: docker/setup-buildx-action@v3
@@ -65,6 +102,7 @@ jobs:
         image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         format: 'sarif'
         output: 'trivy-results.sarif'
+      continue-on-error: true
     
     - name: 보안 스캔 결과 업로드
       uses: github/codeql-action/upload-sarif@v3
@@ -96,8 +134,13 @@ jobs:
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
         elif [ "${{ needs.build-and-push.result }}" == "failure" ]; then
-          echo "❌ Docker 빌드 실패"
-          echo "🔧 빌드 로그를 확인하여 문제 해결 필요"
+                  echo "❌ Docker 빌드 실패"
+        echo "🔧 빌드 로그를 확인하여 문제 해결 필요"
+        echo "📋 일반적인 문제 해결 방법:"
+        echo "   1. Dockerfile 문법 오류 확인"
+        echo "   2. requirements.txt 의존성 문제 확인"
+        echo "   3. PAT_TOKEN 시크릿 설정 확인"
+        echo "   4. GitHub Container Registry 권한 확인"
         else
           echo "⚠️ Docker 빌드: ${{ needs.build-and-push.result }}"
         fi

@@ -29,10 +29,10 @@ class ONNXModel:
         """
         self.model_path = model_path
         self.session = None
-        self.input_names = []
-        self.output_names = []
-        self.input_shapes = []
-        self.output_shapes = []
+        self.input_names: List[str] = []
+        self.output_names: List[str] = []
+        self.input_shapes: List[List[int]] = []
+        self.output_shapes: List[List[int]] = []
 
         # 기본 제공자 설정 (GPU 우선, CPU 폴백)
         if providers is None:

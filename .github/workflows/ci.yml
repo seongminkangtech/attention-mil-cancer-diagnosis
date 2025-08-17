@@ -49,7 +49,7 @@ jobs:
     - name: 타입 검사
       run: |
         echo "�� 타입 검사 중... (Python ${{ matrix.python-version }})"
-        mypy src/ --ignore-missing-imports --no-strict-optional
+        mypy src/ --ignore-missing-imports --no-strict-optional --explicit-package-bases
     
     - name: 테스트 실행
       run: |

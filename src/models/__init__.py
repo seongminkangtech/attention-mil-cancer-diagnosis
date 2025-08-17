@@ -1,10 +1,5 @@
 """
-의료 AI 모델 패키지
+모델 모듈
 
-이 패키지는 의료 영상 분류를 위한 다양한 모델을 포함합니다.
+의료 AI 모델들을 정의합니다.
 """
-
-from .attention_mil import AttentionMILModel
-from .feature_extractor import FeatureExtractor
-
-__all__ = ["AttentionMILModel", "FeatureExtractor"]

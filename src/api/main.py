@@ -9,6 +9,7 @@ import sys
 
 import uvicorn
 import yaml
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -21,6 +22,47 @@ from src.api.utils.validation import validate_config
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """애플리케이션 생명주기 관리"""
+    # 시작 이벤트
+    print("🚀 의료 AI 추론 서비스 시작...")
+
+    # 설정 파일 로드
+    try:
+        config_path = "configs/model_configs/attention_mil.yaml"
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            validate_config(config)
+            print("✅ 설정 파일 로드 완료")
+        else:
+            print("⚠️ 설정 파일을 찾을 수 없습니다.")
+    except Exception as e:
+        print(f"❌ 설정 파일 로드 실패: {e}")
+
+    # ONNX Runtime 정보 확인
+    try:
+        import onnxruntime as ort
+
+        providers = ort.get_available_providers()
+        print("✅ ONNX Runtime 사용 가능")
+        print(f"   - 사용 가능한 제공자: {providers}")
+
+        if "CUDAExecutionProvider" in providers:
+            print("✅ GPU 가속 지원")
+        else:
+            print("⚠️ GPU 가속을 사용할 수 없습니다. CPU를 사용합니다.")
+
+    except ImportError:
+        print("⚠️ ONNX Runtime을 찾을 수 없습니다.")
+
+    yield
+
+    # 종료 이벤트
+    print("🛑 의료 AI 추론 서비스 종료...")
 
 
 def create_app() -> FastAPI:
@@ -37,6 +79,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     # CORS 미들웨어 추가
@@ -61,47 +104,6 @@ def create_app() -> FastAPI:
                 success=False, message="서버 내부 오류가 발생했습니다.", data=None
             ),
         )
-
-    # 시작 이벤트
-    @app.on_event("startup")
-    async def startup_event():
-        """서버 시작 시 실행되는 이벤트"""
-        print("🚀 의료 AI 추론 서비스 시작...")
-
-        # 설정 파일 로드
-        try:
-            config_path = "configs/model_configs/attention_mil.yaml"
-            if os.path.exists(config_path):
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = yaml.safe_load(f)
-                validate_config(config)
-                print("✅ 설정 파일 로드 완료")
-            else:
-                print("⚠️ 설정 파일을 찾을 수 없습니다.")
-        except Exception as e:
-            print(f"❌ 설정 파일 로드 실패: {e}")
-
-        # ONNX Runtime 정보 확인
-        try:
-            import onnxruntime as ort
-
-            providers = ort.get_available_providers()
-            print("✅ ONNX Runtime 사용 가능")
-            print(f"   - 사용 가능한 제공자: {providers}")
-
-            if "CUDAExecutionProvider" in providers:
-                print("✅ GPU 가속 지원")
-            else:
-                print("⚠️ GPU 가속을 사용할 수 없습니다. CPU를 사용합니다.")
-
-        except ImportError:
-            print("⚠️ ONNX Runtime을 찾을 수 없습니다.")
-
-    # 종료 이벤트
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        """서버 종료 시 실행되는 이벤트"""
-        print("🛑 의료 AI 추론 서비스 종료...")
 
     return app
 

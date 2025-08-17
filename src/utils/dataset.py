@@ -80,9 +80,9 @@ class CustomDataset(Dataset):
         Returns:
             dict: 클래스별 샘플 수
         """
-        class_counts = {}
+        class_counts: dict[int, int] = {}
         for label in self.labels:
-            class_idx = torch.argmax(label).item()
+            class_idx = int(torch.argmax(label).item())
             class_counts[class_idx] = class_counts.get(class_idx, 0) + 1
 
         return class_counts
