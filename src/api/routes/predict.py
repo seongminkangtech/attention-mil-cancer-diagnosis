@@ -19,8 +19,7 @@ from src.models.onnx_model import ONNXModel
 from src.utils import get_class_names
 
 from ..utils.response import create_error_response, create_response
-from ..utils.validation import (validate_model_config,
-                                validate_prediction_request)
+from ..utils.validation import validate_model_config, validate_prediction_request
 
 # 프로젝트 루트를 Python 경로에 추가
 sys.path.append(

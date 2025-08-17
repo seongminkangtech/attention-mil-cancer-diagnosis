@@ -5,8 +5,7 @@
 """
 
 from .dataset import CustomDataset
-from .preprocessing import (get_class_names, load_and_preprocess_images,
-                            normalize_image)
+from .preprocessing import get_class_names, load_and_preprocess_images, normalize_image
 
 __all__ = [
     "CustomDataset",
