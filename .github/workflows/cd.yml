@@ -36,30 +36,28 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.PAT_TOKEN }}
     
-    - name: Docker 메타데이터 추출
+    - name: Docker 메타데이터
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
-          type=ref,event=branch
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=sha,prefix={{branch}}-
           type=raw,value=latest,enable={{is_default_branch}}
+          type=sha,prefix={{branch}}-
+          type=sha
     
-    - name: Docker 이미지 빌드 및 푸시
+    - name: Docker 이미지 빌드
       id: build
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
+        tags: |
+          ${{ steps.meta.outputs.tags }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        platforms: linux/amd64
-        outputs: type=oci,dest=/tmp/image.tar
     
     - name: 이미지 보안 스캔
       uses: aquasecurity/trivy-action@master
@@ -68,8 +66,9 @@ jobs:
         format: 'sarif'
         output: 'trivy-results.sarif'
     
-    - name: 보안 검사 결과 업로드
-      uses: github/codeql-action/upload-sarif@v2
+    - name: 보안 스캔 결과 업로드
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
       with:
         sarif_file: 'trivy-results.sarif'
 
@@ -98,8 +97,7 @@ jobs:
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
         elif [ "${{ needs.build-and-push.result }}" == "failure" ]; then
           echo "❌ Docker 빌드 실패"
-          echo "🔍 원인: Docker Buildx exporter 문제 또는 빌드 오류"
-          echo "💡 해결방안: 로그 확인 후 빌드 설정 점검"
+          echo "🔧 빌드 로그를 확인하여 문제 해결 필요"
         else
           echo "⚠️ Docker 빌드: ${{ needs.build-and-push.result }}"
         fi
