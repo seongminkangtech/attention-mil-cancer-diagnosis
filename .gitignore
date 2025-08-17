@@ -260,11 +260,62 @@ audit_trails/
 # 테스트 결과
 test_results/
 coverage/
-.coverage
-htmlcov/
 .pytest_cache/
 .tox/
 .nox/
+
+## 🔄 CI/CD 관련
+
+# CI/CD 생성 파일들
+# 테스트 커버리지 리포트
+coverage.xml
+htmlcov/
+.coverage
+*.coverage
+coverage/
+
+# 보안 검사 리포트
+safety-report.json
+bandit-report.json
+trivy-results.sarif
+*-report.json
+*-results.*
+
+# CI/CD 아티팩트
+.github/actions/
+.github/workflows/*.log
+.github/workflows/*.tmp
+
+# GitHub Actions 캐시
+.cache/
+.github/cache/
+
+# CI/CD 임시 파일
+*.tmp
+*.temp
+*.log
+*.out
+*.err
+
+# Docker 빌드 관련
+.dockerignore
+docker-compose.override.yml
+*.dockerfile
+
+# CI/CD 로그 및 리포트
+ci-reports/
+cd-reports/
+workflow-logs/
+action-logs/
+
+# GitHub Actions 실행 결과
+.github/actions/runs/
+.github/actions/artifacts/
+
+# CI/CD 환경 변수 (로컬)
+.env.ci
+.env.cd
+.env.local
 
 ## 📦 배포 관련
 
