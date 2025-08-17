@@ -1,20 +1,12 @@
-name: CD - 지속적 배포
+name: CD - Docker 이미지 빌드 및 푸시
 
 on:
   push:
-    branches: [ main, staging ]
+    branches: [ main ]
   workflow_dispatch:
     inputs:
-      environment:
-        description: '배포 환경'
-        required: true
-        default: 'staging'
-        type: choice
-        options:
-        - staging
-        - production
       version:
-        description: '배포할 버전 (예: v1.2.0)'
+        description: '빌드할 버전 (예: v1.2.0)'
         required: false
         default: 'latest'
 
@@ -25,7 +17,7 @@ env:
 jobs:
   build-and-push:
     name: Docker 이미지 빌드 및 푸시
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +44,7 @@ jobs:
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        password: ${{ secrets.PAT_TOKEN }}
     
     - name: Docker 메타데이터 추출
       id: meta
@@ -91,214 +83,29 @@ jobs:
       with:
         sarif_file: 'trivy-results.sarif'
 
-  deploy-staging:
-    name: 스테이징 환경 배포
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/staging' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
-    
-    steps:
-    - name: 코드 체크아웃
-      uses: actions/checkout@v4
-    
-    - name: Kubernetes 설정
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'latest'
-    
-    - name: Kubernetes 컨텍스트 설정
-      run: |
-        echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > kubeconfig
-        export KUBECONFIG=kubeconfig
-    
-    - name: 스테이징 환경 배포
-      run: |
-        echo "🚀 스테이징 환경에 배포 중..."
-        
-        # 네임스페이스 생성
-        kubectl create namespace attention-mil-staging --dry-run=client -o yaml | kubectl apply -f -
-        
-        # ConfigMap과 Secret 적용
-        kubectl apply -f k8s/dev/configmap.yaml -n attention-mil-staging
-        kubectl apply -f k8s/dev/secret.yaml -n attention-mil-staging
-        
-        # 이미지 태그 업데이트
-        sed "s|IMAGE_TAG|${{ needs.build-and-push.outputs.image-tag }}|g" k8s/dev/deployment.yaml | kubectl apply -f - -n attention-mil-staging
-        
-        # 서비스 적용
-        kubectl apply -f k8s/dev/service.yaml -n attention-mil-staging
-    
-    - name: 배포 상태 확인
-      run: |
-        echo "📊 배포 상태 확인 중..."
-        kubectl rollout status deployment/attention-mil-dev -n attention-mil-staging --timeout=300s
-    
-    - name: 헬스체크
-      run: |
-        echo "🏥 배포 후 헬스체크 중..."
-        kubectl wait --for=condition=ready pod -l app=attention-mil-dev -n attention-mil-staging --timeout=300s
-        
-        # API 엔드포인트 테스트
-        kubectl port-forward svc/attention-mil-dev 8000:8000 -n attention-mil-staging &
-        sleep 15
-        
-        # 헬스체크 엔드포인트 테스트
-        curl -f http://localhost:8000/health/ || exit 1
-        
-        # 포트포워드 종료
-        pkill -f "kubectl port-forward"
-
-  deploy-production:
-    name: 프로덕션 환경 배포
-    runs-on: ubuntu-latest
-    needs: [build-and-push, deploy-staging]
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
-    
-    steps:
-    - name: 코드 체크아웃
-      uses: actions/checkout@v4
-    
-    - name: Kubernetes 설정
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'latest'
-    
-    - name: Kubernetes 컨텍스트 설정
-      run: |
-        echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > kubeconfig
-        export KUBECONFIG=kubeconfig
-    
-    - name: 프로덕션 환경 배포
-      run: |
-        echo "🚀 프로덕션 환경에 배포 중..."
-        
-        # 네임스페이스 생성
-        kubectl create namespace attention-mil-production --dry-run=client -o yaml | kubectl apply -f -
-        
-        # ConfigMap과 Secret 적용
-        kubectl apply -f k8s/production/configmap.yaml -n attention-mil-production
-        kubectl apply -f k8s/production/secret.yaml -n attention-mil-production
-        
-        # 이미지 태그 업데이트
-        sed "s|IMAGE_TAG|${{ needs.build-and-push.outputs.image-tag }}|g" k8s/production/deployment.yaml | kubectl apply -f - -n attention-mil-production
-        
-        # 서비스 적용
-        kubectl apply -f k8s/production/service.yaml -n attention-mil-production
-    
-    - name: 배포 상태 확인
-      run: |
-        echo "📊 배포 상태 확인 중..."
-        kubectl rollout status deployment/attention-mil-production -n attention-mil-production --timeout=300s
-    
-    - name: 헬스체크
-      run: |
-        echo "🏥 배포 후 헬스체크 중..."
-        kubectl wait --for=condition=ready pod -l app=attention-mil-production -n attention-mil-production --timeout=300s
-        
-        # API 엔드포인트 테스트
-        kubectl port-forward svc/attention-mil-production 8000:8000 -n attention-mil-production &
-        sleep 15
-        
-        # 헬스체크 엔드포인트 테스트
-        curl -f http://localhost:8000/health/ || exit 1
-        
-        # 포트포워드 종료
-        pkill -f "kubectl port-forward"
-
-  rollback:
-    name: 롤백 준비
-    runs-on: ubuntu-latest
-    needs: [build-and-push, deploy-staging, deploy-production]
-    if: failure()
-    
-    steps:
-    - name: 롤백 스크립트 생성
-      run: |
-        echo "🔄 롤백 스크립트 생성 중..."
-        echo "=================================="
-        
-        # Docker 빌드 실패 시
-        if [ "${{ needs.build-and-push.result }}" == "failure" ]; then
-          echo "❌ Docker 빌드 실패로 인한 롤백"
-          cat > rollback-build.sh << 'EOF'
-          #!/bin/bash
-          echo "Docker 빌드 실패로 인한 롤백:"
-          echo "1. 이전 이미지 태그 확인:"
-          echo "   docker images | grep ${{ env.IMAGE_NAME }}"
-          echo ""
-          echo "2. 이전 이미지로 재배포:"
-          echo "   kubectl set image deployment/attention-mil-dev attention-mil-api=<이전_이미지_태그> -n attention-mil-staging"
-          echo ""
-          echo "3. 배포 상태 확인:"
-          echo "   kubectl rollout status deployment/attention-mil-dev -n attention-mil-staging"
-          EOF
-          chmod +x rollback-build.sh
-        fi
-        
-        # 스테이징 배포 실패 시
-        if [ "${{ needs.deploy-staging.result }}" == "failure" ]; then
-          echo "❌ 스테이징 배포 실패로 인한 롤백"
-          cat > rollback-staging.sh << 'EOF'
-          #!/bin/bash
-          echo "스테이징 환경 롤백:"
-          echo "kubectl rollout undo deployment/attention-mil-dev -n attention-mil-staging"
-          echo ""
-          echo "롤백 히스토리:"
-          echo "kubectl rollout history deployment/attention-mil-dev -n attention-mil-staging"
-          echo ""
-          echo "배포 상태 확인:"
-          echo "kubectl rollout status deployment/attention-mil-dev -n attention-mil-staging"
-          EOF
-          chmod +x rollback-staging.sh
-        fi
-        
-        # 프로덕션 배포 실패 시
-        if [ "${{ needs.deploy-production.result }}" == "failure" ]; then
-          echo "❌ 프로덕션 배포 실패로 인한 롤백"
-          cat > rollback-production.sh << 'EOF'
-          #!/bin/bash
-          echo "프로덕션 환경 롤백:"
-          echo "kubectl rollout undo deployment/attention-mil-production -n attention-mil-production"
-          echo ""
-          echo "롤백 히스토리:"
-          echo "kubectl rollout history deployment/attention-mil-production -n attention-mil-production"
-          echo ""
-          echo "배포 상태 확인:"
-          echo "kubectl rollout status deployment/attention-mil-production -n attention-mil-production"
-          EOF
-          chmod +x rollback-production.sh
-        fi
-        
-        echo ""
-        echo "📋 생성된 롤백 스크립트:"
-        ls -la rollback-*.sh 2>/dev/null || echo "롤백 스크립트가 생성되지 않았습니다."
-    
-    - name: 롤백 가이드 업로드
-      uses: actions/upload-artifact@v4
-      with:
-        name: rollback-guides
-        path: rollback-*.sh
-
   notify:
-    name: 배포 결과 알림
-    runs-on: ubuntu-latest
-    needs: [build-and-push, deploy-staging, deploy-production, rollback]
+    name: 빌드 결과 알림
+    runs-on: ubuntu-22.04
+    needs: [build-and-push]
     if: always()
     
     steps:
-    - name: 배포 결과 요약
+    - name: 빌드 결과 요약
       run: |
-        echo "📊 배포 결과 요약"
-        echo "=================="
+        echo "📊 Docker 이미지 빌드 결과 요약"
+        echo "=================================="
         echo "Docker 빌드: ${{ needs.build-and-push.result }}"
-        echo "스테이징 배포: ${{ needs.deploy-staging.result }}"
-        echo "프로덕션 배포: ${{ needs.deploy-production.result }}"
-        echo "롤백 준비: ${{ needs.rollback.result }}"
         echo ""
         
         # Docker 빌드 결과
         if [ "${{ needs.build-and-push.result }}" == "success" ]; then
-          echo "✅ Docker 빌드 성공!"
+          echo "✅ Docker 이미지 빌드 및 푸시 성공!"
+          echo "🐳 이미지: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          echo "🏷️ 태그: ${{ needs.build-and-push.outputs.image-tag }}"
+          echo ""
+          echo "📥 로컬에서 이미지 가져오기:"
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
         elif [ "${{ needs.build-and-push.result }}" == "failure" ]; then
           echo "❌ Docker 빌드 실패"
           echo "🔍 원인: Docker Buildx exporter 문제 또는 빌드 오류"
@@ -307,39 +114,8 @@ jobs:
           echo "⚠️ Docker 빌드: ${{ needs.build-and-push.result }}"
         fi
         
-        # 스테이징 배포 결과
-        if [ "${{ needs.deploy-staging.result }}" == "success" ]; then
-          echo "✅ 스테이징 배포 성공!"
-        elif [ "${{ needs.deploy-staging.result }}" == "failure" ]; then
-          echo "❌ 스테이징 배포 실패"
-        elif [ "${{ needs.deploy-staging.result }}" == "skipped" ]; then
-          echo "⏭️ 스테이징 배포 건너뜀"
-        else
-          echo "⚠️ 스테이징 배포: ${{ needs.deploy-staging.result }}"
-        fi
-        
-        # 프로덕션 배포 결과
-        if [ "${{ needs.deploy-production.result }}" == "success" ]; then
-          echo "✅ 프로덕션 배포 성공!"
-        elif [ "${{ needs.deploy-production.result }}" == "failure" ]; then
-          echo "❌ 프로덕션 배포 실패"
-        elif [ "${{ needs.deploy-production.result }}" == "skipped" ]; then
-          echo "⏭️ 프로덕션 배포 건너뜀"
-        else
-          echo "⚠️ 프로덕션 배포: ${{ needs.deploy-production.result }}"
-        fi
-        
         echo ""
-        
-        # 전체 상태 요약
-        if [ "${{ needs.build-and-push.result }}" == "success" ] && \
-           [ "${{ needs.deploy-staging.result }}" == "success" ] && \
-           [ "${{ needs.deploy-production.result }}" == "success" ]; then
-          echo "🎉 전체 배포 성공!"
-        elif [ "${{ needs.build-and-push.result }}" == "failure" ]; then
-          echo "🚨 Docker 빌드 실패로 인한 배포 중단"
-          echo "🔧 빌드 문제 해결 후 재시도 필요"
-        else
-          echo "⚠️ 일부 단계 실패"
-          echo "📋 롤백 가이드를 확인하여 복구 진행"
-        fi
+        echo "📋 빌드 정보:"
+        echo "브랜치: ${{ github.ref_name }}"
+        echo "커밋 SHA: ${{ github.sha }}"
+        echo "실행 시간: $(date)"
