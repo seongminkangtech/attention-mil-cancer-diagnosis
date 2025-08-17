@@ -4,14 +4,7 @@
 AI 모델별 설정을 dataclass로 관리합니다.
 """
 
-from .attention_mil_config import (
-    FeatureExtractorConfig,
-    AttentionConfig,
-    AttentionMILConfig
-)
+from .attention_mil_config import (AttentionConfig, AttentionMILConfig,
+                                   FeatureExtractorConfig)
 
-__all__ = [
-    "FeatureExtractorConfig",
-    "AttentionConfig", 
-    "AttentionMILConfig"
-]
+__all__ = ["FeatureExtractorConfig", "AttentionConfig", "AttentionMILConfig"]

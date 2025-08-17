@@ -7,7 +7,4 @@
 from .attention_mil import AttentionMILModel
 from .feature_extractor import FeatureExtractor
 
-__all__ = [
-    'AttentionMILModel',
-    'FeatureExtractor'
-] 
+__all__ = ["AttentionMILModel", "FeatureExtractor"]

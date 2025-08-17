@@ -6,4 +6,4 @@ FastAPI 서버 패키지
 
 from .main import app
 
-__all__ = ['app'] 
+__all__ = ["app"]

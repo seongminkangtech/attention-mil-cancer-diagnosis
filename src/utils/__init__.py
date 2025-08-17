@@ -5,11 +5,12 @@
 """
 
 from .dataset import CustomDataset
-from .preprocessing import load_and_preprocess_images, get_class_names, normalize_image
+from .preprocessing import (get_class_names, load_and_preprocess_images,
+                            normalize_image)
 
 __all__ = [
-    'CustomDataset',
-    'load_and_preprocess_images',
-    'get_class_names',
-    'normalize_image'
-] 
+    "CustomDataset",
+    "load_and_preprocess_images",
+    "get_class_names",
+    "normalize_image",
+]
