@@ -28,11 +28,11 @@ env:
 jobs:
   prepare-environment:
     name: 학습 환경 준비
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9, 3.10, 3.11]
+        python-version: ['3.11']
     outputs:
       should-train: ${{ steps.check.outputs.should-train }}
     
@@ -79,13 +79,13 @@ jobs:
 
   train-model:
     name: 모델 학습
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: prepare-environment
     if: needs.prepare-environment.outputs.should-train == 'true'
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9, 3.10, 3.11]
+        python-version: ['3.11']
     outputs:
       model-version: ${{ steps.train.outputs.version }}
       model-path: ${{ steps.train.outputs.model-path }}
@@ -148,13 +148,13 @@ jobs:
 
   validate-model:
     name: 모델 검증
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: train-model
     if: needs.prepare-environment.outputs.should-train == 'true'
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9, 3.10, 3.11]
+        python-version: ['3.11']
     
     steps:
     - name: 코드 체크아웃
@@ -205,13 +205,13 @@ jobs:
 
   register-model:
     name: 모델 등록 및 버전 관리
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: [train-model, validate-model]
     if: needs.prepare-environment.outputs.should-train == 'true'
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9, 3.10, 3.11]
+        python-version: ['3.9', '3.10', '3.11']
     
     steps:
     - name: 코드 체크아웃

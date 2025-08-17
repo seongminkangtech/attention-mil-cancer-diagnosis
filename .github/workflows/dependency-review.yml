@@ -2,18 +2,18 @@ name: Dependency Review
 
 on:
   pull_request:
-    branches: [ main, staging, develop ]
+    branches: [ main ]
 
 permissions:
   contents: read
 
 jobs:
   dependency-review:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9, 3.10, 3.11]
+        python-version: ['3.11']
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

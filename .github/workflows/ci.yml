@@ -2,24 +2,24 @@ name: CI - 지속적 통합
 
 on:
   push:
-    branches: [ main, staging, develop ]
+    branches: [ main]
   pull_request:
-    branches: [ main, staging ]
+    branches: [ main]
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: '3.9'
+  PYTHON_VERSION: '3.11'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/attention-mil
 
 jobs:
   test:
     name: 테스트 실행
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false  # 하나의 버전 실패 시에도 다른 버전 계속 실행
       matrix:
-        python-version: [3.9, 3.10, 3.11]
+        python-version: ['3.11']
     
     steps:
     - name: 코드 체크아웃
